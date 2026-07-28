@@ -1,0 +1,38 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Test / tool caches ---
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Virtual environments ---
+.venv/
+venv/
+
+# --- uv ---
+# Keep uv.lock OUT of this list if the project ever gains a pyproject.toml -
+# lockfiles should be committed. Scripts here use PEP 723 inline metadata.
+
+# --- Editor / IDE ---
+.idea/
+.vscode/
+*.swp
+*~
+
+# --- OS ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# --- Local tool output (subdomain dumps) ---
+# Uncomment if you do not want exported results in git:
+# *-subs.txt
+# *-subs.json
+# *-subs.csv
