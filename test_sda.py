@@ -8,7 +8,7 @@
 # ]
 # ///
 
-"""Offline tests for sdf.py (httpx.MockTransport + typer.testing.CliRunner)."""
+"""Offline tests for sda.py (httpx.MockTransport + typer.testing.CliRunner)."""
 
 import json
 
@@ -16,7 +16,7 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
-import sdf
+import sda
 
 runner = CliRunner()
 
@@ -37,7 +37,7 @@ TRUNCATED_PAYLOAD = {
 
 @pytest.fixture
 def api(monkeypatch):
-    """Route sdf.create_client through a MockTransport serving queued responses."""
+    """Route sda.create_client through a MockTransport serving queued responses."""
     state = {"responses": [], "requests": []}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -52,13 +52,13 @@ def api(monkeypatch):
     def factory(timeout: float) -> httpx.Client:
         return httpx.Client(transport=httpx.MockTransport(handler))
 
-    monkeypatch.setattr(sdf, "create_client", factory)
+    monkeypatch.setattr(sda, "create_client", factory)
     return state
 
 
 @pytest.fixture(autouse=True)
 def _no_sleep(monkeypatch):
-    monkeypatch.setattr(sdf.time, "sleep", lambda *_args: None)
+    monkeypatch.setattr(sda.time, "sleep", lambda *_args: None)
 
 
 def combined(result) -> str:
@@ -91,7 +91,7 @@ def json_response(payload: dict, status: int = 200, headers: dict | None = None)
     ],
 )
 def test_normalize_domain_ok(raw, expected):
-    assert sdf.normalize_domain(raw) == expected
+    assert sda.normalize_domain(raw) == expected
 
 
 @pytest.mark.parametrize(
@@ -99,8 +99,8 @@ def test_normalize_domain_ok(raw, expected):
     ["", "   ", "example", "exa mple.com", "-bad.com", "bad-.com", "example.c", "a..com", "http://", "exam_ple.com", "123.45"],
 )
 def test_normalize_domain_invalid(raw):
-    with pytest.raises(sdf.SdfError) as excinfo:
-        sdf.normalize_domain(raw)
+    with pytest.raises(sda.sdaError) as excinfo:
+        sda.normalize_domain(raw)
     assert excinfo.value.exit_code == 2
 
 
@@ -108,25 +108,25 @@ def test_normalize_domain_invalid(raw):
 
 def test_retry_delay_honors_retry_after():
     response = httpx.Response(429, headers={"Retry-After": "7"})
-    assert sdf.retry_delay(response, 0) == 7.0
+    assert sda.retry_delay(response, 0) == 7.0
 
 
 def test_retry_delay_caps_retry_after():
     response = httpx.Response(429, headers={"Retry-After": "3600"})
-    assert sdf.retry_delay(response, 0) == sdf.MAX_DELAY
+    assert sda.retry_delay(response, 0) == sda.MAX_DELAY
 
 
 def test_retry_delay_backoff_range():
     response = httpx.Response(503)
-    assert 1.0 <= sdf.retry_delay(response, 0) <= 1.5
-    assert 2.0 <= sdf.retry_delay(response, 1) <= 2.5
+    assert 1.0 <= sda.retry_delay(response, 0) <= 1.5
+    assert 2.0 <= sda.retry_delay(response, 1) <= 2.5
 
 
 # --- CLI -------------------------------------------------------------------
 
 def test_lists_subdomains_on_stdout(api):
     api["responses"].append(json_response(GOOD_PAYLOAD))
-    result = runner.invoke(sdf.app, ["--quiet", "example.com"])
+    result = runner.invoke(sda.app, ["--quiet", "example.com"])
     assert result.exit_code == 0
     assert result.output.splitlines() == GOOD_PAYLOAD["subdomains"]
     assert "domain=example.com" in str(api["requests"][0].url)
@@ -134,7 +134,7 @@ def test_lists_subdomains_on_stdout(api):
 
 def test_summary_goes_to_stderr(api):
     api["responses"].append(json_response(GOOD_PAYLOAD))
-    result = runner.invoke(sdf.app, ["example.com"])
+    result = runner.invoke(sda.app, ["example.com"])
     assert result.exit_code == 0
     assert "3 subdomain(s) found" in combined(result)
     for subdomain in GOOD_PAYLOAD["subdomains"]:
@@ -143,27 +143,27 @@ def test_summary_goes_to_stderr(api):
 
 def test_empty_results_exit_0(api):
     api["responses"].append(json_response(EMPTY_PAYLOAD))
-    result = runner.invoke(sdf.app, ["example.com"])
+    result = runner.invoke(sda.app, ["example.com"])
     assert result.exit_code == 0
     assert "No subdomains found" in combined(result)
 
 
 def test_truncation_note_when_count_below_total(api):
     api["responses"].append(json_response(TRUNCATED_PAYLOAD))
-    result = runner.invoke(sdf.app, ["example.com"])
+    result = runner.invoke(sda.app, ["example.com"])
     assert result.exit_code == 0
     assert "truncated" in combined(result)
 
 
 def test_http_400_is_exit_1(api):
     api["responses"].append(httpx.Response(400, json={"error": "invalid domain"}))
-    result = runner.invoke(sdf.app, ["example.com"])
+    result = runner.invoke(sda.app, ["example.com"])
     assert result.exit_code == 1
     assert "HTTP 400" in combined(result)
 
 
 def test_invalid_domain_is_exit_2_without_request(api):
-    result = runner.invoke(sdf.app, ["not a domain"])
+    result = runner.invoke(sda.app, ["not a domain"])
     assert result.exit_code == 2
     assert api["requests"] == []
 
@@ -173,14 +173,14 @@ def test_retry_after_429_then_success(api):
         httpx.Response(429, headers={"Retry-After": "0"}),
         json_response(GOOD_PAYLOAD),
     ]
-    result = runner.invoke(sdf.app, ["--quiet", "example.com"])
+    result = runner.invoke(sda.app, ["--quiet", "example.com"])
     assert result.exit_code == 0
     assert len(api["requests"]) == 2
 
 
 def test_retries_exhausted_on_persistent_429(api):
     api["responses"] += [httpx.Response(429, headers={"Retry-After": "0"})] * 3
-    result = runner.invoke(sdf.app, ["--quiet", "--retries", "2", "example.com"])
+    result = runner.invoke(sda.app, ["--quiet", "--retries", "2", "example.com"])
     assert result.exit_code == 1
     assert len(api["requests"]) == 3
     assert "HTTP 429" in combined(result)
@@ -188,21 +188,21 @@ def test_retries_exhausted_on_persistent_429(api):
 
 def test_retry_on_503_then_success(api):
     api["responses"] += [httpx.Response(503), json_response(GOOD_PAYLOAD)]
-    result = runner.invoke(sdf.app, ["--quiet", "example.com"])
+    result = runner.invoke(sda.app, ["--quiet", "example.com"])
     assert result.exit_code == 0
     assert len(api["requests"]) == 2
 
 
 def test_connect_timeout_is_exit_1(api):
     api["responses"].append(httpx.ConnectTimeout("boom"))
-    result = runner.invoke(sdf.app, ["--quiet", "example.com"])
+    result = runner.invoke(sda.app, ["--quiet", "example.com"])
     assert result.exit_code == 1
     assert "timed out" in combined(result)
 
 
 def test_json_output(api):
     api["responses"].append(json_response(GOOD_PAYLOAD))
-    result = runner.invoke(sdf.app, ["--quiet", "--json", "example.com"])
+    result = runner.invoke(sda.app, ["--quiet", "--json", "example.com"])
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert payload["count"] == 3
@@ -211,14 +211,14 @@ def test_json_output(api):
 
 def test_csv_output(api):
     api["responses"].append(json_response(GOOD_PAYLOAD))
-    result = runner.invoke(sdf.app, ["--quiet", "--csv", "example.com"])
+    result = runner.invoke(sda.app, ["--quiet", "--csv", "example.com"])
     assert result.exit_code == 0
     assert result.output.splitlines() == ["subdomain"] + GOOD_PAYLOAD["subdomains"]
 
 
 def test_count_only(api):
     api["responses"].append(json_response(GOOD_PAYLOAD))
-    result = runner.invoke(sdf.app, ["--quiet", "--count-only", "example.com"])
+    result = runner.invoke(sda.app, ["--quiet", "--count-only", "example.com"])
     assert result.exit_code == 0
     assert result.output.strip() == "3"
 
@@ -226,7 +226,7 @@ def test_count_only(api):
 def test_output_file_format_from_extension(api, tmp_path):
     api["responses"].append(json_response(GOOD_PAYLOAD))
     target = tmp_path / "subs.json"
-    result = runner.invoke(sdf.app, ["--quiet", "--output", str(target), "example.com"])
+    result = runner.invoke(sda.app, ["--quiet", "--output", str(target), "example.com"])
     assert result.exit_code == 0
     assert result.output == ""
     assert json.loads(target.read_text(encoding="utf-8"))["count"] == 3
@@ -235,35 +235,35 @@ def test_output_file_format_from_extension(api, tmp_path):
 def test_output_txt_file(api, tmp_path):
     api["responses"].append(json_response(GOOD_PAYLOAD))
     target = tmp_path / "subs.txt"
-    result = runner.invoke(sdf.app, ["--quiet", "-o", str(target), "example.com"])
+    result = runner.invoke(sda.app, ["--quiet", "-o", str(target), "example.com"])
     assert result.exit_code == 0
     assert target.read_text(encoding="utf-8").splitlines() == GOOD_PAYLOAD["subdomains"]
 
 
 def test_json_and_csv_conflict_is_exit_2(api):
-    result = runner.invoke(sdf.app, ["--json", "--csv", "example.com"])
+    result = runner.invoke(sda.app, ["--json", "--csv", "example.com"])
     assert result.exit_code == 2
     assert api["requests"] == []
 
 
 def test_url_input_is_normalized(api):
     api["responses"].append(json_response(GOOD_PAYLOAD))
-    result = runner.invoke(sdf.app, ["--quiet", "https://www.example.com/about"])
+    result = runner.invoke(sda.app, ["--quiet", "https://www.example.com/about"])
     assert result.exit_code == 0
     assert "domain=example.com" in str(api["requests"][0].url)
 
 
 def test_broken_pipe_exits_0(api, monkeypatch):
     api["responses"].append(json_response(GOOD_PAYLOAD))
-    monkeypatch.setattr(sdf.sys.stdout, "write", lambda *_: (_ for _ in ()).throw(BrokenPipeError()))
-    result = runner.invoke(sdf.app, ["--quiet", "example.com"])
+    monkeypatch.setattr(sda.sys.stdout, "write", lambda *_: (_ for _ in ()).throw(BrokenPipeError()))
+    result = runner.invoke(sda.app, ["--quiet", "example.com"])
     assert result.exit_code == 0
 
 
 def test_version():
-    result = runner.invoke(sdf.app, ["--version"])
+    result = runner.invoke(sda.app, ["--version"])
     assert result.exit_code == 0
-    assert sdf.__version__ in result.output
+    assert sda.__version__ in result.output
 
 
 if __name__ == "__main__":

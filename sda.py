@@ -7,14 +7,14 @@
 # ]
 #
 # ///
-"""sdf -- subdomain finder CLI.
+"""sda -- subdomain finder CLI.
 
 Finds the subdomains of a domain using the free Subdomain API
 (https://subdomain.app). No signup, no API key.
 
 Self-contained uv script (PEP 723 inline metadata):
 
-    uv run sdf.py example.com
+    uv run sda.py example.com
 """
 
 from __future__ import annotations
@@ -37,21 +37,21 @@ from rich.markup import escape
 from rich.panel import Panel
 
 API_URL = "https://api.subdomain.app/v1/query"
-USER_AGENT = "sdf-cli/1.0 (+https://subdomain.app)"
+USER_AGENT = "sda-cli/1.0 (+https://subdomain.app)"
 RETRYABLE_STATUS = {429, 503}
 MAX_DELAY = 30.0
 
 __version__ = "1.0.0"
 
 app = typer.Typer(
-    name="sdf",
+    name="sda",
     help="Find the subdomains of a domain via the free Subdomain API (subdomain.app).",
     add_completion=False,
 )
 err_console = Console(stderr=True)
 
 
-class SdfError(Exception):
+class sdaError(Exception):
     """Fatal error carrying a user-facing message and a process exit code."""
 
     def __init__(self, message: str, exit_code: int = 1) -> None:
@@ -96,7 +96,7 @@ def normalize_domain(raw: str) -> str:
     if value.startswith("www."):
         value = value[4:]
     if not is_valid_domain(value):
-        raise SdfError(f"invalid domain {raw!r} - enter something like 'example.com'", exit_code=2)
+        raise sdaError(f"invalid domain {raw!r} - enter something like 'example.com'", exit_code=2)
     return value
 
 
@@ -136,14 +136,14 @@ def fetch_subdomains(
         try:
             response = client.get(API_URL, params={"domain": domain})
         except httpx.TimeoutException as exc:
-            raise SdfError(f"request timed out after {client.timeout.read:g}s") from exc
+            raise sdaError(f"request timed out after {client.timeout.read:g}s") from exc
         except httpx.HTTPError as exc:
-            raise SdfError(f"network error: {exc}") from exc
+            raise sdaError(f"network error: {exc}") from exc
 
         if response.status_code == 200:
             break
         if response.status_code == 400:
-            raise SdfError(f"the API rejected {domain!r} as an invalid domain (HTTP 400)")
+            raise sdaError(f"the API rejected {domain!r} as an invalid domain (HTTP 400)")
         if response.status_code in RETRYABLE_STATUS and attempt < retries:
             delay = retry_delay(response, attempt)
             attempt += 1
@@ -151,7 +151,7 @@ def fetch_subdomains(
                 warn(f"HTTP {response.status_code} - retry {attempt}/{retries} in {delay:.1f}s")
             sleep(delay)
             continue
-        raise SdfError(f"API error: HTTP {response.status_code}")
+        raise sdaError(f"API error: HTTP {response.status_code}")
 
     try:
         data = response.json()
@@ -162,7 +162,7 @@ def fetch_subdomains(
             subdomains=[str(item) for item in data["subdomains"]],
         )
     except (ValueError, KeyError, TypeError) as exc:
-        raise SdfError(f"could not parse the API response: {exc}") from exc
+        raise sdaError(f"could not parse the API response: {exc}") from exc
 
 
 def render_txt(result: QueryResult) -> str:
@@ -195,7 +195,7 @@ RENDERERS = {"txt": render_txt, "json": render_json, "csv": render_csv}
 
 def pick_format(as_json: bool, as_csv: bool, output: Path | None) -> str:
     if as_json and as_csv:
-        raise SdfError("choose only one of --json and --csv", exit_code=2)
+        raise sdaError("choose only one of --json and --csv", exit_code=2)
     if as_json:
         return "json"
     if as_csv:
@@ -247,7 +247,7 @@ def emit(result: QueryResult, *, fmt: str, count_only: bool, output: Path | None
 
 def version_callback(value: bool) -> None:
     if value:
-        typer.echo(f"sdf {__version__}")
+        typer.echo(f"sda {__version__}")
         raise typer.Exit()
 
 
@@ -269,7 +269,7 @@ def main(
         fmt = pick_format(as_json, as_csv, output)
         result = run_query(root, timeout=timeout, retries=retries, quiet=quiet)
         emit(result, fmt=fmt, count_only=count_only, output=output, quiet=quiet)
-    except SdfError as exc:
+    except sdaError as exc:
         err_console.print(f"[red]error:[/red] {exc}")
         raise typer.Exit(code=exc.exit_code) from exc
     except BrokenPipeError:

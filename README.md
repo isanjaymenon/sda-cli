@@ -1,4 +1,4 @@
-# sdf - Subdomain Finder CLI
+# sda - Subdomain App CLI
 
 Find the subdomains of any domain from the terminal, powered by the free
 [Subdomain API](https://subdomain.app) - no signup, no API key.
@@ -9,7 +9,7 @@ Single-file Python script with inline dependency metadata (PEP 723), run with
 ## Quick start
 
 ```powershell
-uv run sdf.py example.com
+uv run sda.py example.com
 ```
 
 The first run resolves `httpx`, `rich`, and `typer` into uv's cache; every run
@@ -17,17 +17,17 @@ after that starts instantly.
 
 ## Usage
 
-```
-uv run sdf.py <domain> [options]
+```text
+uv run sda.py <domain> [options]
 ```
 
 The input is forgiving - these all look up `example.com`:
 
 ```powershell
-uv run sdf.py example.com
-uv run sdf.py https://www.example.com/about
-uv run sdf.py blog.example.com
-uv run sdf.py "user:pass@example.com:8080/path"
+uv run sda.py example.com
+uv run sda.py https://www.example.com/about
+uv run sda.py blog.example.com
+uv run sda.py "user:pass@example.com:8080/path"
 ```
 
 ### Options
@@ -48,16 +48,16 @@ uv run sdf.py "user:pass@example.com:8080/path"
 
 ```powershell
 # Pipe-friendly: plain list, one subdomain per line
-uv run sdf.py github.com --quiet | sort
+uv run sda.py github.com --quiet | sort
 
 # Just the count
-uv run sdf.py github.com --count-only
+uv run sda.py github.com --count-only
 
 # JSON to a file (format inferred from extension)
-uv run sdf.py github.com -o github-subs.json
+uv run sda.py github.com -o github-subs.json
 
 # CSV via flag
-uv run sdf.py github.com --csv -o github-subs.csv
+uv run sda.py github.com --csv -o github-subs.csv
 ```
 
 ### Exit codes
@@ -94,8 +94,8 @@ Run the offline test suite (mocked HTTP via `httpx.MockTransport`, CLI via
 typer's `CliRunner`):
 
 ```powershell
-uv run test_sdf.py
+uv run test_sda.py
 ```
 
-`test_sdf.py` carries its own PEP 723 header including pytest, so no project
+`test_sda.py` carries its own PEP 723 header including pytest, so no project
 setup is needed.
